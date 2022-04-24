@@ -1,0 +1,3 @@
+Ticker	Weights	FX Ticker
+SPY	0.5	CAD=X
+XIU.TO	0.5	
