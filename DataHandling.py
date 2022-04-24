@@ -8,7 +8,7 @@ Created on Fri Apr 22 23:00:03 2022
 import pandas as pd
 import yfinance as yf
 import logging
-
+import numpy as np
 
 class DataHandling:
     @staticmethod
@@ -20,22 +20,31 @@ class DataHandling:
         tickers_nonan = [x for x in tickers if pd.isnull(x) == False]
         
         data = yf.download(tickers_nonan, start=start_date, end=end_date)['Close']
-        '''
-        if():
-            raise Exception()
-        '''
+        
+        
+        # if more than 25% of a security's data is na, throw exception
+        for col in data.columns.to_list():
+            if sum(pd.isnull(data[col]))/data.shape[0] > 0.25:
+                logging.info('>>> Error: security ' + str(col) + ' has more than 25% of nan values.')
+                raise Exception('>>> Error: security ' + str(col) + ' has more than 25% of nan values.')   
+        
+        # filling missing data (using basic forward fill ) 
+        # and then remvoe remaining na (first few rows if there is nan)
+        [data[col].fillna(method='ffill', inplace=True) for col in data.columns.to_list()]
+        data.dropna(inplace=True)
+        
         return data
         
     @staticmethod        
     def linear_return(price):
         # price is a dataframe
-        # if price is 0, there will be na return, for now, simply drop
+        # if 0 is in the denominator, there will be na return, for now, simply drop
         retn = price.pct_change().dropna()
         return retn
         
     @staticmethod
     def cumulative_return(retn):
-        # note the 1st time step's cumulative return is not 1 (not the current day)
+        # note the 1st time step's cumulative return is not 1 (not the current day, it's the next day)
         return (retn+1).cumprod()
     
     

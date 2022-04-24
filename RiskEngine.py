@@ -8,19 +8,27 @@ Created on Fri Apr 22 23:39:26 2022
 import random
 import numpy as np
 import pandas as pd
+import logging
 from DataHandling import DataHandling
 from portfolio import EqPortfolio
 
 class HistSimulation:
     
-    def __init__(self, portfolio, num_sim, num_stitches, subwindow_length):
+    def __init__(self, portfolio, num_sim, num_stitches, subwindow_length, confidence_lvl):
         self.portfolio = portfolio
         self.num_sim = num_sim
         self.num_stitches = num_stitches
         self.tot_timesteps = portfolio.retn_hist.shape[0]
         self.subwindow_length = subwindow_length
         self.bootstrap_indices = []
+        self.confidence_lvl = confidence_lvl
         
+        if confidence_lvl >= 1 or confidence_lvl <= 0:
+            logging.info('>>> Error: confidence level must be in range of (0,1).')
+            raise Exception('>>> Error: confidence level must be in range of (0,1).')
+        if subwindow_length > self.tot_timesteps:
+            logging.info('>>> Error: sub window for bootstrapping cannot exceed the lenght of total timesteps.')
+            raise Exception('>>> Error: sub window for bootstrapping cannot exceed the lenght of total timesteps.')
         
     def hist_bootstrap(self):
         self.bootstrap_indices = [self.hist_bootstrap_onepath() for j in range(self.num_sim)]
@@ -79,25 +87,26 @@ class HistSimulation:
     
     
     def risk_report(self, cum_retns):
+        
         # pick the last day's return from each simulation
         one_year_end_retn_dist = []
         [one_year_end_retn_dist.append(one_year_cum_retn[-1] - 1) for one_year_cum_retn in cum_retns]
         
-        etl_99pct = RiskMetrics.etl(one_year_end_retn_dist, 0.01)
+        etl = RiskMetrics.etl(one_year_end_retn_dist, 1-self.confidence_lvl)
         basic_stats_retn = RiskMetrics.basic_stats(one_year_end_retn_dist)
-        print('ETL 99% : ' + str(etl_99pct))
-        print('Mean : ' + str(basic_stats_retn['mean']))
-        print('stdev : ' + str(basic_stats_retn['stdev']))
+        logging.info('ETL ' + 'at ' + str(self.confidence_lvl) + ' : ' + str(etl))
+        logging.info('Mean : ' + str(basic_stats_retn['mean']))
+        logging.info('stdev : ' + str(basic_stats_retn['stdev']))
     
         # alternative tail risk - etl of maximum lost
         one_year_maxloss_dist = []
         [one_year_maxloss_dist.append(np.min(one_year_cum_retn-1)) for one_year_cum_retn in cum_retns]
     
-        etl_maxloss_99pct = RiskMetrics.etl(one_year_maxloss_dist, 0.01)
+        etl_maxloss = RiskMetrics.etl(one_year_maxloss_dist, 1-self.confidence_lvl)
         basic_stats_maxloss = RiskMetrics.basic_stats(one_year_maxloss_dist)
-        print('ETL max-loss 99% : ' + str(etl_maxloss_99pct))    
-        print('Mean : ' + str(basic_stats_maxloss['mean']))
-        print('stdev : ' + str(basic_stats_maxloss['stdev']))
+        logging.info('ETL max-loss at ' + str(self.confidence_lvl) + ' : ' + str(etl_maxloss))    
+        logging.info('Mean : ' + str(basic_stats_maxloss['mean']))
+        logging.info('stdev : ' + str(basic_stats_maxloss['stdev']))
     
         
 class RiskMetrics:
